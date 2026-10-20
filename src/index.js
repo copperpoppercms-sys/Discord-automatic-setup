@@ -20,10 +20,10 @@ function setupEmbed() {
   return new EmbedBuilder()
     .setColor(0x5865f2)
     .setTitle('🛠️ Server setup')
-    .setDescription('run a theme command or pick one from the menu below. each theme builds roles, sorted emoji categories, channels, voice rooms and welcome/rules embeds.')
-    .addFields(
-      { name: '🎨 Theme commands', value: themeLines },
-      { name: '🧩 Packs — `/addon pack:<name>` (adds to the server, deletes nothing)', value: packLines },
+    .setDescription(
+      'run a theme command or pick one from the menu below. each theme builds roles, sorted emoji categories, channels, voice rooms and welcome/rules embeds.\n\n' +
+      `**🎨 Theme commands**\n${themeLines}\n\n` +
+      `**🧩 Packs** — \`/addon pack:<name>\` adds to the server, deletes nothing\n${packLines}`,
     );
 }
 
