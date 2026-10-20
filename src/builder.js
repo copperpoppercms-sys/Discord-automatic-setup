@@ -149,6 +149,36 @@ async function build(guild, def, { mode = 'add', onProgress = () => {} } = {}) {
   return stats;
 }
 
+/**
+ * deletes every channel (+ optionally every role this bot's themes/packs can create), then leaves one
+ * empty #general so the server isn't blank. roles not named in a theme/pack are never touched.
+ */
+async function wipe(guild, { roles = false, themeRoleNames = [], onProgress = () => {} } = {}) {
+  const stats = { deleted: 0, rolesDeleted: 0, warnings: [] };
+  await Promise.all([guild.channels.fetch(), guild.roles.fetch()]);
+
+  const all = [...guild.channels.cache.values()].sort((a, b) => (a.type === ChannelType.GuildCategory) - (b.type === ChannelType.GuildCategory));
+  let n = 0;
+  for (const ch of all) {
+    onProgress(`🧹 deleting channels (${++n}/${all.length})`);
+    try { await ch.delete(REASON); stats.deleted++; } catch { stats.warnings.push(`could not delete ${ch.name} (community required channel?)`); }
+  }
+
+  if (roles) {
+    const names = new Set(themeRoleNames);
+    const targets = [...guild.roles.cache.values()].filter((r) => names.has(r.name) && !r.managed && r.id !== guild.id);
+    for (const [i, r] of targets.entries()) {
+      onProgress(`🎭 deleting roles (${i + 1}/${targets.length})`);
+      try { await r.delete(REASON); stats.rolesDeleted++; } catch { stats.warnings.push(`could not delete role ${r.name} (above the bot's role?)`); }
+    }
+  }
+
+  if (!guild.channels.cache.some((c) => c.type === ChannelType.GuildText)) {
+    await guild.channels.create({ name: 'general', type: ChannelType.GuildText, reason: REASON }).catch(() => {});
+  }
+  return stats;
+}
+
 const countChannels = (def) => def.categories.reduce((n, c) => n + c.channels.length, 0);
 
-module.exports = { build, countChannels };
+module.exports = { build, wipe, countChannels };

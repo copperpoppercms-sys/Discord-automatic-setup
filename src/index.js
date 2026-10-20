@@ -5,12 +5,13 @@ const {
 } = require('discord.js');
 const { THEMES, byKey } = require('./themes');
 const { ALL: PACKS } = require('./packs');
-const { build, countChannels } = require('./builder');
+const { build, wipe, countChannels } = require('./builder');
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const busy = new Set();
 const EPHEMERAL = MessageFlags.Ephemeral;
 
+const themeRoleNames = () => [...THEMES, ...PACKS].flatMap((d) => (d.roles ?? []).map((r) => r.name));
 const packByKey = (k) => PACKS.find((p) => p.key === k);
 const resolve = (kind, key) => (kind === 't' ? byKey(key) : packByKey(key));
 
@@ -23,7 +24,8 @@ function setupEmbed() {
     .setDescription(
       'run a theme command or pick one from the menu below. each theme builds roles, sorted emoji categories, channels, voice rooms and welcome/rules embeds.\n\n' +
       `**🎨 Theme commands**\n${themeLines}\n\n` +
-      `**🧩 Packs** — \`/addon pack:<name>\` adds to the server, deletes nothing\n${packLines}`,
+      `**🧩 Packs** — \`/addon pack:<name>\` adds to the server, deletes nothing\n${packLines}\n\n` +
+      '**🧹 `/wipe`** — deletes every channel (add `roles:true` to also remove theme roles).',
     );
 }
 
@@ -66,6 +68,16 @@ function needAdmin(i) {
 async function onCommand(i) {
   if (await needAdmin(i)) return;
   if (i.commandName === 'setup') return i.reply({ embeds: [setupEmbed()], components: [pickMenu()], flags: EPHEMERAL });
+  if (i.commandName === 'wipe') {
+    const roles = i.options.getBoolean('roles') ?? false;
+    const embed = new EmbedBuilder().setColor(0xed4245).setTitle('🧹 Wipe server')
+      .setDescription(`this deletes **every channel and category** in the server${roles ? ' and every role created by the themes / packs' : ''}. it cannot be undone. one empty #general is left behind.`);
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`wipe:${roles ? 'roles' : 'keep'}`).setLabel('Delete everything').setEmoji('🧹').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId('cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
+    );
+    return i.reply({ embeds: [embed], components: [row], flags: EPHEMERAL });
+  }
   if (i.commandName === 'addon') return reply(i, confirmPayload('p', packByKey(i.options.getString('pack', true))));
   const theme = byKey(i.commandName);
   if (theme) return reply(i, confirmPayload('t', theme));
@@ -106,6 +118,32 @@ async function onGo(i) {
   }
 }
 
+async function onWipe(i) {
+  const me = i.guild.members.me;
+  if (!me.permissions.has(PermissionFlagsBits.ManageChannels)) return i.update({ content: "i'm missing Manage Channels.", embeds: [], components: [] });
+  if (busy.has(i.guildId)) return i.update({ content: 'a setup is already running in this server.', embeds: [], components: [] });
+  busy.add(i.guildId);
+  await i.update({ content: '🧹 wiping…', embeds: [], components: [] });
+  let last = 0;
+  const onProgress = (msg) => {
+    if (Date.now() - last < 2500) return;
+    last = Date.now();
+    i.editReply({ content: msg }).catch(() => {});
+  };
+  try {
+    const withRoles = i.customId === 'wipe:roles';
+    const s = await wipe(i.guild, { roles: withRoles, themeRoleNames: themeRoleNames(), onProgress });
+    const lines = [`🧹 done. ${s.deleted} channels deleted` + (withRoles ? `, ${s.rolesDeleted} roles deleted.` : '.')];
+    if (s.warnings.length) lines.push(`\n⚠️ ${s.warnings.length} warning(s):\n` + s.warnings.slice(0, 8).map((w) => `• ${w}`).join('\n'));
+    await i.editReply({ content: lines.join('\n').slice(0, 2000) });
+  } catch (err) {
+    console.error(err);
+    await i.editReply({ content: `wipe failed: ${err.message}` }).catch(() => {});
+  } finally {
+    busy.delete(i.guildId);
+  }
+}
+
 client.on('interactionCreate', async (i) => {
   try {
     if (i.isChatInputCommand()) return await onCommand(i);
@@ -118,6 +156,7 @@ client.on('interactionCreate', async (i) => {
       if (await needAdmin(i)) return;
       if (i.customId === 'cancel') return await i.update({ content: 'cancelled.', embeds: [], components: [] });
       if (i.customId.startsWith('go:')) return await onGo(i);
+      if (i.customId.startsWith('wipe:')) return await onWipe(i);
     }
   } catch (err) {
     console.error(err);

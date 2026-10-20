@@ -15,6 +15,10 @@ const commands = [
   new SlashCommandBuilder().setName('setup').setDescription('show every theme / pack command and pick one from a menu'),
   ...THEMES.map((t) => new SlashCommandBuilder().setName(t.key).setDescription(`${t.emoji} ${t.description}`.slice(0, 100))),
   new SlashCommandBuilder()
+    .setName('wipe')
+    .setDescription('delete every channel in the server (optionally the theme roles too)')
+    .addBooleanOption((o) => o.setName('roles').setDescription('also delete roles created by themes / packs')),
+  new SlashCommandBuilder()
     .setName('addon')
     .setDescription('add an extra block of channels to the current server (nothing gets deleted)')
     .addStringOption((o) =>
