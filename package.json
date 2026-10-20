@@ -1,0 +1,17 @@
+{
+  "name": "discord-automatic-setup",
+  "version": "1.0.0",
+  "description": "Discord bot that builds a fully themed server (roles, categories, emoji channels, embeds) from one slash command.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "deploy": "node src/deploy-commands.js",
+    "test": "node scripts/validate.js"
+  },
+  "engines": { "node": ">=18.17" },
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5"
+  }
+}
